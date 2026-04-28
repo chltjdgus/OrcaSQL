@@ -1,37 +1,85 @@
-My OrcaSQL 개인정보처리방침
-My OrcaSQL ("이 앱") 은 hyeon 이 개발한 데스크톱 MySQL GUI 클라이언트입니다. 본 방침은 이 앱이 사용자 데이터를 어떻게 처리하는지 설명합니다.
+# My OrcaSQL Privacy Policy
 
-1. 수집하는 개인정보
-이 앱은 개인정보를 수집하지 않습니다. 사용 통계·분석·식별자 등 어떠한 텔레메트리도 전송하지 않으며, 모든 작업은 사용자 기기에서 로컬로만 수행됩니다.
+> 한국어 정책은 [아래 섹션](#한국어-개인정보처리방침)에 있습니다 — Korean policy is in the section below.
 
-2. 로컬 저장 데이터
+**My OrcaSQL** ("the app") is a desktop MySQL GUI client developed by hyeon. This policy describes how the app handles user data.
+
+## 1. Data Collection
+The app **does not collect any personal information.** No telemetry, analytics, or identifiers are transmitted. All operations are performed locally on the user's device.
+
+## 2. Locally Stored Data
+The following data is stored only on the user's device and is never transmitted externally.
+
+| Item | Location |
+|---|---|
+| Connection settings (host, port, username, DB name) | `%USERPROFILE%\.orcasql\` (Windows) / `~/.orcasql/` (macOS) |
+| Database passwords | OS secure storage (Windows Credential Manager / macOS Keychain) |
+| Query history, favorites, session state | Same directory as above |
+
+## 3. Network Communication
+The app communicates **only with MySQL servers explicitly specified by the user.** No data is sent to the developer's servers, analytics services, or any third party.
+
+The optional MCP (Model Context Protocol) server feature, when enabled by the user, accepts only `localhost` loopback connections and is disabled by default.
+
+## 4. Third-Party Services
+None.
+
+## 5. Data Removal
+Users can remove all locally stored data at any time:
+- **Windows**: Settings → Apps → My OrcaSQL → Uninstall, with "Also delete user data" checked
+- **macOS**: Move `.app` to Trash, then manually delete the `~/.orcasql/` directory
+- "orcasql" entries can be removed directly from OS Credential Manager / Keychain
+
+## 6. Children's Privacy
+The app is not directed at children under 13 and does not knowingly collect data from any user.
+
+## 7. Policy Changes
+Updates to this policy will be published at the same URL.
+
+## 8. Contact
+nas.hyeon@gmail.com
+
+Last updated: 2026-04-28
+
+---
+
+# 한국어 개인정보처리방침
+
+**My OrcaSQL** ("이 앱") 은 hyeon 이 개발한 데스크톱 MySQL GUI 클라이언트입니다. 본 방침은 이 앱이 사용자 데이터를 어떻게 처리하는지 설명합니다.
+
+## 1. 수집하는 개인정보
+이 앱은 **개인정보를 수집하지 않습니다.** 사용 통계·분석·식별자 등 어떠한 텔레메트리도 전송하지 않으며, 모든 작업은 사용자 기기에서 로컬로만 수행됩니다.
+
+## 2. 로컬 저장 데이터
 다음 데이터가 사용자 기기에만 저장되며 외부로 전송되지 않습니다.
 
-항목	저장 위치
-연결 설정(호스트·포트·사용자명·DB명)	%USERPROFILE%\.orcasql\ (Windows) / ~/.orcasql/ (macOS)
-데이터베이스 비밀번호	OS 보안 저장소 (Windows Credential Manager / macOS Keychain)
-쿼리 히스토리·즐겨찾기·세션 상태	위 동일 디렉터리
-3. 네트워크 통신
-이 앱은 사용자가 직접 지정한 MySQL 서버와만 통신합니다. 개발자 서버·분석 서비스·제3자에게 어떠한 데이터도 전송하지 않습니다.
+| 항목 | 저장 위치 |
+|---|---|
+| 연결 설정(호스트·포트·사용자명·DB명) | `%USERPROFILE%\.orcasql\` (Windows) / `~/.orcasql/` (macOS) |
+| 데이터베이스 비밀번호 | OS 보안 저장소 (Windows Credential Manager / macOS Keychain) |
+| 쿼리 히스토리·즐겨찾기·세션 상태 | 위 동일 디렉터리 |
 
-선택 기능인 MCP(Model Context Protocol) 서버는 사용자가 활성화한 경우에만 localhost 로컬 루프백 연결만 수신하며, 기본값은 비활성화입니다.
+## 3. 네트워크 통신
+이 앱은 **사용자가 직접 지정한 MySQL 서버와만** 통신합니다. 개발자 서버·분석 서비스·제3자에게 어떠한 데이터도 전송하지 않습니다.
 
-4. 제3자 서비스
+선택 기능인 MCP(Model Context Protocol) 서버는 사용자가 활성화한 경우에만 `localhost` 로컬 루프백 연결만 수신하며, 기본값은 비활성화입니다.
+
+## 4. 제3자 서비스
 사용하지 않습니다.
 
-5. 데이터 삭제
+## 5. 데이터 삭제
 사용자는 언제든지 로컬 데이터를 전체 삭제할 수 있습니다.
+- **Windows**: 설정 → 앱 → My OrcaSQL 제거 시 "사용자 데이터도 함께 삭제" 체크
+- **macOS**: `.app` 을 휴지통으로 이동 후 `~/.orcasql/` 디렉터리 수동 삭제
+- OS Credential Manager / Keychain 에서 "orcasql" 항목 직접 제거 가능
 
-Windows: 설정 → 앱 → My OrcaSQL 제거 시 "사용자 데이터도 함께 삭제" 체크
-macOS: .app 을 휴지통으로 이동 후 ~/.orcasql/ 디렉터리 수동 삭제
-OS Credential Manager / Keychain 에서 "orcasql" 항목 직접 제거 가능
-6. 아동 개인정보 보호
+## 6. 아동 개인정보 보호
 이 앱은 13세 미만 아동을 대상으로 하지 않으며 어떤 사용자로부터도 데이터를 수집하지 않습니다.
 
-7. 방침 변경
+## 7. 방침 변경
 본 방침의 변경 사항은 동일 URL 에 게시됩니다.
 
-8. 문의
+## 8. 문의
 nas.hyeon@gmail.com
 
 최종 수정일: 2026-04-28
