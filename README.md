@@ -110,7 +110,15 @@ MySQL 5.7 / 8.0 / 8.4 호환.
 ### macOS
 1. 아래 **Assets**에서 `OrcaSQL.dmg` 파일을 다운로드합니다.
 2. DMG 파일을 마운트한 뒤 `OrcaSQL.app`을 **Applications** 폴더로 드래그합니다.
-3. 처음 실행 시 Gatekeeper 경고가 표시될 경우: **시스템 설정 → 개인정보 및 보안 → "확인 없이 열기"** 클릭.
+3. **"파일이 손상되어 열 수 없습니다" 메시지가 표시되는 경우** — 현재 OrcaSQL은 Apple 코드서명을 적용하지 않아 macOS가 quarantine 속성을 부여하면서 발생하는 현상입니다(파일 자체는 정상). 터미널에서 아래 명령으로 해제할 수 있습니다.
+   ```bash
+   xattr -cr /Applications/OrcaSQL.app
+   ```
+   DMG 파일 자체에 경고가 뜨면 다운로드한 DMG에도 동일하게 적용합니다.
+   ```bash
+   xattr -cr ~/Downloads/OrcaSQL.dmg
+   ```
+4. 처음 실행 시 Gatekeeper 경고("확인되지 않은 개발자")가 표시되면 **시스템 설정 → 개인정보 및 보안 → "확인 없이 열기"** 를 클릭합니다.
 
 ---
 
