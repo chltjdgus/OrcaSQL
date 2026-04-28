@@ -1,0 +1,5 @@
+# GitHub Pages — chltjdgus/OrcaSQL 의 PRIVACY.md 등을 깔끔히 렌더하기 위한 Jekyll 설정.
+# 이 파일은 CI(.github/workflows/build.yml) 가 _config.yml 그대로 chltjdgus/OrcaSQL 로 동기화한다.
+title: My OrcaSQL
+description: Desktop MySQL GUI Client — Built with Wails v3
+theme: jekyll-theme-cayman
