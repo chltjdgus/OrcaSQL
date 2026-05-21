@@ -1,0 +1,71 @@
+name: Test
+
+# 빌드(build.yml) 는 태그 push 시에만 실행되므로 회귀가 늦게 잡힌다.
+# 이 워크플로는 push/PR 마다 가벼운 단위 테스트 + 타입체크만 돌려 빠른 안전망 역할.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  GO_VERSION: '1.26'
+
+jobs:
+  test:
+    # 테스트는 dev origin(WebSQL)에서만 실행. OrcaSQL(public 미러)는 빌드/릴리스 전용.
+    if: github.repository == 'chltjdgus/WebSQL'
+    runs-on: ubuntu-latest
+    name: Unit tests (Go + frontend)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # wails v3 의 cgo 의존성(assetserver/webview + operatingsystem) 이
+      # GTK3/WebKit2/libsoup pkg-config 를 요구. root 패키지 orcasql 의
+      # app_credentials_test.go 가 package main 에 속해 동일 컴파일 그래프를
+      # 끌어오므로 ubuntu-latest 러너에 시스템 패키지 설치 필요. (BugFix-CF)
+      - name: Install Linux GUI dependencies (wails v3 cgo)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev
+
+      # main.go 의 //go:embed all:frontend/dist 가 root 패키지 컴파일 시점에
+      # 매칭 가능하도록 더미 파일을 생성. 단위 테스트는 frontend 빌드 산출물을
+      # 참조하지 않으므로 placeholder 한 줄로 충분. (BugFix-CE)
+      - name: Stub frontend/dist for go:embed
+        run: mkdir -p frontend/dist && echo "ci-stub" > frontend/dist/.gitkeep
+
+      # ── Go 단위 테스트 — internal/schema/designer, internal/session 등 ────
+      - name: Go unit tests
+        run: go test ./...
+
+      # ── 프론트엔드 의존성 ─────────────────────────────────────────────────
+      - name: Install frontend dependencies
+        run: bun install
+        working-directory: ./frontend
+
+      # ── tsc 타입 체크 ────────────────────────────────────────────────────
+      - name: Frontend typecheck
+        run: bun run typecheck
+        working-directory: ./frontend
+
+      # ── vitest 단위 테스트 — i18n / nativeConfirm / placeholderParser /
+      #                       useMessagesLogStore / connectionStore.nextQueryTitle
+      - name: Frontend unit tests
+        run: bun run test
+        working-directory: ./frontend
