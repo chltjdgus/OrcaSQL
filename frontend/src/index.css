@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+/* ─── 커스텀 CSS 변수 ──────────────────────────────────────────── */
+:root {
+  --color-bg-primary:   #0f1117;
+  --color-bg-secondary: #161b27;
+  --color-bg-tertiary:  #1e2230;
+  --color-bg-deep:      #0a0d14;
+  --color-bg-hover:     #252b3b;
+  --color-border:       #2d3748;
+  --color-text-primary: #e2e8f0;
+  --color-text-muted:   #718096;
+  --color-text-subtle:  #a0aec0;
+  --color-accent:       #4299e1;
+  --color-accent-hover: #3182ce;
+  --color-accent-light: #90cdf4;
+  --color-bg-selected:  #2a4a7f;
+  --color-pk:           #f6e05e;
+  --color-success:      #68d391;
+  --color-error:        #fc8181;
+  --color-warning:      #f6ad55;
+  --color-null:         #4a5568;
+
+  /* 스크롤바 — Monaco 에디터 디폴트 (vs-dark) 와 동일 */
+  --scrollbar-vertical-size:   14px;
+  --scrollbar-horizontal-size: 12px;
+  --scrollbar-radius: 0px;
+  --scrollbar-thumb-color:        rgba(121, 121, 121, 0.4);
+  --scrollbar-thumb-hover-color:  rgba(100, 100, 100, 0.7);
+  --scrollbar-thumb-active-color: rgba(191, 191, 191, 0.4);
+}
+
+/* ─── 라이트 테마 변수 오버라이드 ────────────────────────────── */
+html.light-theme {
+  --color-bg-primary:   #ffffff;
+  --color-bg-secondary: #f7f8fa;
+  --color-bg-tertiary:  #edf0f7;
+  --color-bg-deep:      #f0f4f8;
+  --color-bg-hover:     #e2e8f0;
+  --color-border:       #cbd5e0;
+  --color-text-primary: #1a202c;
+  --color-text-muted:   #718096;
+  --color-text-subtle:  #6b7280;
+  --color-accent:       #3182ce;
+  --color-accent-hover: #2b6cb0;
+  --color-accent-light: #1d4ed8;
+  --color-bg-selected:  #dbeafe;
+  --color-pk:           #b45309;
+  --color-success:      #38a169;
+  --color-error:        #e53e3e;
+  --color-warning:      #dd6b20;
+  --color-null:         #a0aec0;
+
+  /* 스크롤바 — Monaco 에디터 디폴트 (vs light) 와 동일 */
+  --scrollbar-thumb-color:        rgba(100, 100, 100, 0.4);
+  --scrollbar-thumb-hover-color:  rgba(100, 100, 100, 0.7);
+  --scrollbar-thumb-active-color: rgba(0, 0, 0, 0.6);
+}
+
+/* 라이트 테마: 기본 배경/텍스트 */
+html.light-theme body,
+html.light-theme #root {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+/* ─── react-resizable-panels v4 Separator (VS Code 스타일) ────
+   - 시각 라인은 1px 유지 → 스크롤바와 시각적으로 분리
+   - ::before 의사요소로 hit area 7px 확장 → 스크롤바 옆에서도 잡힘
+   - hover 200ms 지연 → 마우스가 스쳐 지나갈 때 깜빡임 방지
+   - 드래그 중(data-separator='active')에는 지연 없이 즉시 강조
+   - v4 attr: data-separator='inactive' | 'hover' | 'active'
+   - 방향은 Separator className(osql-separator-{horizontal,vertical}) 으로 분기 */
+.osql-separator-horizontal,
+.osql-separator-vertical {
+  position: relative;
+  background: var(--color-border);
+  flex-shrink: 0;
+  transition: background 120ms ease 200ms;
+}
+.osql-separator-horizontal {
+  width: 1px !important;
+}
+.osql-separator-vertical {
+  height: 1px !important;
+}
+/* 확장 hit area — 보이지 않지만 포인터 이벤트는 캐치 */
+.osql-separator-horizontal::before,
+.osql-separator-vertical::before {
+  content: '';
+  position: absolute;
+  z-index: 10;
+}
+.osql-separator-horizontal::before {
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+}
+.osql-separator-vertical::before {
+  left: 0;
+  right: 0;
+  top: -3px;
+  bottom: -3px;
+}
+.osql-separator-horizontal[data-separator="hover"],
+.osql-separator-horizontal[data-separator="active"],
+.osql-separator-vertical[data-separator="hover"],
+.osql-separator-vertical[data-separator="active"] {
+  background: var(--color-accent);
+  transition: background 120ms ease 200ms, box-shadow 120ms ease 200ms;
+}
+/* hover 시 box-shadow 로 시각 라인을 1px → 3px 로 두껍게 (layout shift 없음) */
+.osql-separator-horizontal[data-separator="hover"],
+.osql-separator-horizontal[data-separator="active"] {
+  box-shadow: -1px 0 0 0 var(--color-accent), 1px 0 0 0 var(--color-accent);
+}
+.osql-separator-vertical[data-separator="hover"],
+.osql-separator-vertical[data-separator="active"] {
+  box-shadow: 0 -1px 0 0 var(--color-accent), 0 1px 0 0 var(--color-accent);
+}
+.osql-separator-horizontal[data-separator="active"],
+.osql-separator-vertical[data-separator="active"] {
+  transition-delay: 0ms;
+}
+
+/* ─── 전역 auto-hide 스크롤바 (Monaco 에디터 스타일) ─────────
+   Monaco 의 ScrollableElement 위젯과 색·크기·동작이 동일:
+   - 세로 14px / 가로 12px (Monaco 디폴트)
+   - 슬라이더가 트랙 폭을 그대로 채움 (padding/border 없음)
+   - border-radius 0 (Monaco 와 동일하게 직각)
+   - 평상시 슬라이더 transparent → 컨테이너 hover 시 표시
+   - 슬라이더 hover/drag 단계별 강조
+   - 라이트 테마는 active 시 어두워짐, 다크는 밝아짐 (Monaco 와 동일)
+   토큰: `:root` 의 `--scrollbar-*` */
+::-webkit-scrollbar {
+  width:  var(--scrollbar-vertical-size);
+  height: var(--scrollbar-horizontal-size);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: var(--scrollbar-radius);
+  transition: background-color 100ms ease;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-color);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover-color);
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active-color);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ─── Monaco 에디터 컨테이너 ─────────────────────────────────── */
+.monaco-container { height: 100%; min-height: 120px; }
+
+/* ─── 테이블 NULL 값 표시 ────────────────────────────────────── */
+.cell-null { color: var(--color-null); font-style: italic; }
+
+/* ── 폼 입력 ── */
+html.light-theme input,
+html.light-theme select,
+html.light-theme textarea {
+  background-color: #ffffff;
+  color: #1a202c;
+  border-color: #cbd5e0;
+}
+html.light-theme input::placeholder,
+html.light-theme textarea::placeholder { color: #a0aec0; }
+
+/* ── Monaco 에디터 ── */
+html.light-theme .monaco-editor { background: #ffffff !important; }
+html.light-theme .monaco-editor .margin { background: #f8f9fa !important; }
+
+/* ── 테이블 ResultGrid ── */
+html.light-theme table thead tr { background-color: #f1f5f9 !important; }
+html.light-theme table thead th { color: #374151 !important; border-color: #cbd5e0 !important; }
+html.light-theme table tbody tr:nth-child(even) { background-color: #f8fafc !important; }
+html.light-theme table tbody tr:hover { background-color: #eff6ff !important; }
+html.light-theme table tbody td { color: #1e293b !important; border-color: #e2e8f0 !important; }
+
+/* ── focus ring ── */
+html.light-theme *:focus-visible { outline-color: #3182ce; }
