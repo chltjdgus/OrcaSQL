@@ -1,0 +1,5 @@
+# GitHub Pages — PRIVACY.md 등을 깔끔히 렌더하기 위한 Jekyll 설정.
+# chltjdgus/OrcaSQL 의 main 브랜치 루트에서 https://chltjdgus.github.io/OrcaSQL/ 로 자동 노출.
+title: My OrcaSql
+description: Desktop MySQL GUI Client — Built with Wails v3
+theme: jekyll-theme-cayman

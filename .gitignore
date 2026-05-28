@@ -1,0 +1,23 @@
+.DS_Store
+node_modules
+bin/
+
+# Claude Code 머신/사용자별 설정 (팀 공유 X — .claude/plans/ 만 추적)
+.claude/settings.local.json
+.claude/settings.json
+
+# 옛 git worktree 메타 (mysql-gui/ 작업 디렉토리 부산물)
+mysql-gui/.claude/
+
+# Wails 빌드 생성물 (자동 재생성됨)
+build/darwin/Assets.car
+build/darwin/Info.dev.plist
+
+# Vite 빌드 산출물
+frontend/dist/
+
+# Vite 타임스탬프 캐시
+frontend/vite.config.ts.timestamp*
+
+# npm lock (bun 프로젝트)
+frontend/package-lock.json

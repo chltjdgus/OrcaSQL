@@ -1,0 +1,105 @@
+version: '3'
+
+includes:
+  common:
+    taskfile: ./build/Taskfile.yml
+    optional: true
+  windows:
+    taskfile: ./build/windows/Taskfile.yml
+    optional: true
+  darwin:
+    taskfile: ./build/darwin/Taskfile.yml
+    optional: true
+
+vars:
+  APP_NAME: "OrcaSQL"
+  BIN_DIR: "bin"
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+
+tasks:
+  # ─── 개발 ──────────────────────────────────────────────────
+  dev:
+    desc: "개발 서버 실행 (Hot-reload)"
+    cmds:
+      - wails3 dev
+
+  # ─── 빌드 ──────────────────────────────────────────────────
+  build:
+    desc: "프로덕션 빌드 (현재 플랫폼 자동 감지)"
+    cmds:
+      - task: '{{OS}}:build'
+
+  run:
+    desc: "빌드 후 실행"
+    cmds:
+      - task: '{{OS}}:run'
+
+  package:
+    desc: "패키징 (darwin=.app, windows=.zip)"
+    cmds:
+      - task: '{{OS}}:package'
+
+  dmg:
+    desc: "배포용 DMG 생성 (macOS 전용)"
+    cmds:
+      - task: darwin:dmg
+
+  msix:
+    desc: "배포용 MSIX 생성 (Windows 전용)"
+    cmds:
+      - task: windows:msix
+
+  # ─── 코드 생성 ─────────────────────────────────────────────
+  generate:
+    desc: "Go → TypeScript 바인딩 재생성"
+    cmds:
+      - wails3 generate bindings
+
+  # ─── 프론트엔드 ────────────────────────────────────────────
+  frontend:install:
+    desc: "프론트엔드 의존성 설치"
+    dir: frontend
+    cmds:
+      - bun install
+
+  frontend:dev:
+    desc: "프론트엔드 단독 실행"
+    dir: frontend
+    cmds:
+      - bun run dev
+
+  frontend:build:
+    desc: "프론트엔드 빌드"
+    dir: frontend
+    cmds:
+      - bun run build
+
+  frontend:typecheck:
+    desc: "TypeScript 타입 검사 (빌드 없이)"
+    dir: frontend
+    cmds:
+      - bun run typecheck
+
+  # ─── Go ────────────────────────────────────────────────────
+  tidy:
+    desc: "go mod tidy"
+    cmds:
+      - go mod tidy
+
+  test:
+    desc: "Go 유닛 테스트"
+    cmds:
+      - go test ./...
+
+  vet:
+    desc: "Go 정적 분석 (go vet)"
+    cmds:
+      - go vet ./...
+
+  # ─── 전체 초기 설정 ─────────────────────────────────────────
+  setup:
+    desc: "최초 설정"
+    cmds:
+      - task: tidy
+      - task: frontend:install
+      - task: generate
