@@ -1,0 +1,371 @@
+name: Build & Release
+
+# Git 태그(v*) push 시 자동 릴리스 + PR/push 시 빌드 검증
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: '1.26'
+
+jobs:
+  # ─── 빌드 매트릭스 ─────────────────────────────────────────────────────────
+  build:
+    # 빌드/배포는 public 미러(OrcaSQL)에서만 실행. WebSQL(private)에 동일 파일이 미러 sync 워크플로에 의해 존재하더라도 무시.
+    if: github.repository == 'chltjdgus/OrcaSQL'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: OrcaSQL.app
+            archive: OrcaSQL-darwin-universal.tar.gz
+
+          - os: windows-latest
+            artifact: OrcaSQL.exe
+            archive: OrcaSQL-windows-amd64.zip
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.os }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # ── Go 설치 ────────────────────────────────────────────────────────────
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # ── Bun 설치 ───────────────────────────────────────────────────────────
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # ── 의존성 설치 ────────────────────────────────────────────────────────
+      - name: Install Go dependencies
+        run: go mod tidy
+
+      - name: Install frontend dependencies
+        run: bun install
+        working-directory: ./frontend
+
+      # ── 프론트엔드 빌드 (embed 용) ─────────────────────────────────────────
+      - name: Build frontend
+        run: bun run build
+        working-directory: ./frontend
+
+      # ── 메타데이터 동기화 — Info.plist / build/config.yml 의 version·copyright 를 태그로 치환 ─
+      # macOS .app 번들 메타데이터(CFBundleVersion, NSHumanReadableCopyright)와
+      # build/config.yml 의 version 을 git 태그(v0.1.7 → 0.1.7)로 일관화.
+      # 로컬 dev 환경(태그 없음)은 0.1.0-dev fallback 으로 유지.
+      - name: Sync version metadata (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${VERSION#v}"
+          YEAR=$(date +%Y)
+
+          # macOS Info.plist — CFBundleVersion / CFBundleShortVersionString / NSHumanReadableCopyright
+          # plist 은 <string>VALUE</string> 패턴이므로 다음 줄을 정확히 치환.
+          /usr/bin/sed -i.bak \
+            -e "/<key>CFBundleVersion<\/key>/{n;s|<string>.*</string>|<string>${VERSION}</string>|;}" \
+            -e "/<key>CFBundleShortVersionString<\/key>/{n;s|<string>.*</string>|<string>${VERSION}</string>|;}" \
+            -e "/<key>NSHumanReadableCopyright<\/key>/{n;s|<string>.*</string>|<string>Copyright © ${YEAR}</string>|;}" \
+            build/darwin/Info.plist
+          rm -f build/darwin/Info.plist.bak
+
+          # build/config.yml — wails3 task common:update:build-assets 참조용 메타데이터
+          /usr/bin/sed -i.bak "s|^  version: .*|  version: \"${VERSION}\"|" build/config.yml
+          rm -f build/config.yml.bak
+
+          echo "── Synced metadata to v${VERSION} ──"
+          grep -A1 "CFBundleVersion\|CFBundleShortVersionString\|NSHumanReadableCopyright" build/darwin/Info.plist
+          grep "^  version:" build/config.yml
+
+      # ── macOS 빌드 ─────────────────────────────────────────────────────────
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          VERSION="${VERSION#v}"
+          go build \
+            -ldflags "-X main.Version=${VERSION} -w -s" \
+            -o ./bin/OrcaSQL .
+
+      # ── macOS .app 번들 조립 ───────────────────────────────────────────────
+      - name: Package macOS .app bundle
+        if: matrix.os == 'macos-latest'
+        run: |
+          mkdir -p bin/OrcaSQL.app/Contents/MacOS
+          mkdir -p bin/OrcaSQL.app/Contents/Resources
+          cp bin/OrcaSQL          bin/OrcaSQL.app/Contents/MacOS/OrcaSQL
+          cp build/darwin/Info.plist    bin/OrcaSQL.app/Contents/Info.plist
+          cp build/darwin/icons.icns   bin/OrcaSQL.app/Contents/Resources/icons.icns
+          chmod +x bin/OrcaSQL.app/Contents/MacOS/OrcaSQL
+
+      # ── macOS ad-hoc 코드서명 ──────────────────────────────────────────────
+      # Apple Developer 가입 없이 "파일이 손상되어 열 수 없습니다" 메시지를
+      # 회피. ad-hoc 만으로는 "확인되지 않은 개발자" Gatekeeper 경고는
+      # 남으므로, 사용자는 시스템 설정 → 개인정보 및 보안 → "확인 없이 열기"
+      # 를 한 번 눌러주어야 함.
+      - name: Codesign macOS .app (ad-hoc)
+        if: matrix.os == 'macos-latest'
+        run: |
+          xattr -cr bin/OrcaSQL.app
+          codesign --force --deep --sign - bin/OrcaSQL.app
+          codesign --verify --verbose=2 bin/OrcaSQL.app
+
+      # ── macOS DMG 빌드 ─────────────────────────────────────────────────────
+      - name: Build DMG (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install create-dmg || true
+          create-dmg \
+            --volname "OrcaSQL" \
+            --volicon "build/appicon.png" \
+            --window-pos 200 120 --window-size 660 400 \
+            --icon-size 100 \
+            --icon "OrcaSQL.app" 180 170 \
+            --hide-extension "OrcaSQL.app" \
+            --app-drop-link 480 170 \
+            "bin/OrcaSQL.dmg" "bin/OrcaSQL.app" || true
+
+      # ── Windows 빌드 ───────────────────────────────────────────────────────
+      - name: Build (Windows amd64)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $VERSION = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME -replace '^v', '' } else { 'dev' }
+          go build -ldflags "-X main.Version=$VERSION -w -s -H windowsgui" -o ./bin/OrcaSQL.exe .
+
+      # ── MSIX 로고 자산용 ImageMagick 설치 (Windows) ────────────────────────
+      - name: Install ImageMagick (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: choco install imagemagick -y --no-progress
+
+      # ── WiX v4 MSI 빌드 (Windows) ─────────────────────────────────────────
+      - name: Build MSI (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $REF = $env:GITHUB_REF_NAME
+          $VERSION = if ($REF -match '^v?\d+\.\d+') { $REF -replace '^v', '' } else { '0.1.0' }
+          dotnet tool install -g wix --version '4.*' --allow-downgrade || dotnet tool update -g wix --version '4.*' --allow-downgrade
+          # WixToolset.UI.wixext: installer.wxs 의 <ui:WixUI> / RemoveDataDlg 다이얼로그용.
+          # CLI 가 4.x 이므로 확장도 4.x 로 핀해야 함 — 기본값(7.x) 은 wixext4 폴더 레이아웃 불일치로 WIX0144 발생.
+          wix extension add -g WixToolset.UI.wixext/4.0.6
+          wix build -arch x64 -ext WixToolset.UI.wixext build/windows/installer.wxs -d "Version=${VERSION}.0" -o "bin/OrcaSQL-${VERSION}-Setup.msi"
+
+      # ── MSIX 빌드 (태그 push + secrets 존재 시만) ──────────────────────────
+      - name: Build MSIX (Windows, tag only)
+        if: |
+          matrix.os == 'windows-latest' &&
+          startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          MSIX_PUBLISHER_CN:    ${{ secrets.MSIX_PUBLISHER_CN }}
+          SIGNING_CERT_PFX_B64: ${{ secrets.SIGNING_CERT_PFX_B64 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if (-not $env:MSIX_PUBLISHER_CN) {
+            Write-Host "MSIX_PUBLISHER_CN secret not configured, skipping MSIX build"
+            exit 0
+          }
+          $VERSION = $env:GITHUB_REF_NAME -replace '^v', ''
+          pwsh -File build/windows/msix/package.ps1 `
+            -Version      $VERSION `
+            -PublisherCN  $env:MSIX_PUBLISHER_CN `
+            -CertPfxB64   $env:SIGNING_CERT_PFX_B64 `
+            -CertPassword $env:SIGNING_CERT_PASSWORD
+
+      # ── 아카이브 생성 ──────────────────────────────────────────────────────
+      - name: Archive (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd bin
+          tar -czf ${{ matrix.archive }} OrcaSQL.app
+
+      - name: Archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path bin\OrcaSQL.exe -DestinationPath bin\${{ matrix.archive }}
+
+      # ── 아티팩트 업로드 (공통 아카이브) ──────────────────────────────────
+      # retention-days: 1 — release 잡이 같은 워크플로 run 안에서 즉시 다운로드해 GitHub Release 로 업로드하므로
+      # 빌드 산출물 자체의 장기 보존 의미는 없음. 누적 시 Actions Storage quota 초과 (BugFix-DE 회복 조치).
+      - name: Upload artifact (archive)
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.archive }}
+          path: bin/${{ matrix.archive }}
+          if-no-files-found: error
+          retention-days: 1
+
+      # ── 아티팩트 업로드 (DMG) ─────────────────────────────────────────────
+      - name: Upload artifact (DMG)
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSQL.dmg
+          path: bin/OrcaSQL.dmg
+          if-no-files-found: ignore
+          retention-days: 1
+
+      # ── 아티팩트 업로드 (MSI) ─────────────────────────────────────────────
+      - name: Upload artifact (MSI)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSQL-Setup.msi
+          path: bin/OrcaSQL-*-Setup.msi
+          if-no-files-found: ignore
+          retention-days: 1
+
+      # ── 아티팩트 업로드 (MSIX) ────────────────────────────────────────────
+      - name: Upload artifact (MSIX)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSQL.msix
+          path: bin/OrcaSQL.msix
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # ─── GitHub Release 생성 (태그 push 시만) ─────────────────────────────────
+  # Public 단일 repo 모델 — 같은 repo 의 GITHUB_TOKEN 으로 직접 릴리스.
+  # PRIVACY.md / _config.yml 은 이미 같은 repo 에 있으므로 별도 sync 불필요
+  # (GitHub Pages 가 main 브랜치 루트에서 자동 노출).
+  release:
+    needs: build
+    if: github.repository == 'chltjdgus/OrcaSQL' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # 변경 내역 생성을 위해 전체 git 히스토리(태그 포함) checkout
+      - name: Checkout (for changelog)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # 이전 태그와 현재 태그 사이의 커밋 목록으로 변경 내역 자동 생성
+      - name: Generate changelog
+        id: changelog
+        run: |
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${CURRENT_TAG}"
+            HEADER="### ${PREV_TAG} → ${CURRENT_TAG} 변경 내역"
+          else
+            RANGE="${CURRENT_TAG}"
+            HEADER="### 최초 릴리스"
+          fi
+
+          {
+            echo "$HEADER"
+            echo ""
+            git log "$RANGE" \
+              --pretty=format:"- %s" \
+              --no-merges \
+              | grep -v "^- Merge " \
+              | grep -v "^- chore: " \
+              || true
+          } > /tmp/changelog.md
+
+          {
+            echo "CHANGELOG<<CHANGELOG_EOF"
+            cat /tmp/changelog.md
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -lh dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: My OrcaSql ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## My OrcaSql ${{ github.ref_name }}
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ---
+
+            ## 다운로드
+
+            | 파일 | 설명 |
+            |------|------|
+            | `OrcaSQL-*-Setup.msi` | Windows 설치 파일 (권장) |
+            | `OrcaSQL-windows-amd64.zip` | Windows 이식형 (설치 불필요) |
+            | `OrcaSQL.dmg` | macOS 디스크 이미지 (권장) |
+            | `OrcaSQL-darwin-universal.tar.gz` | macOS Universal 바이너리 |
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*-Setup.msi
+            dist/*.dmg
+            dist/*.msix
+
+  # ─── Microsoft Store 제출 (태그 push 시 실행, Azure secrets 없으면 skip) ──
+  store-submit:
+    needs: build
+    if: github.repository == 'chltjdgus/OrcaSQL' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    env:
+      AZURE_TENANT_ID:     ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID:     ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      STORE_APP_ID:        ${{ secrets.STORE_APP_ID }}
+
+    steps:
+      - name: Check Azure secrets
+        shell: pwsh
+        run: |
+          if (-not $env:AZURE_TENANT_ID) {
+            Write-Host "Azure secrets not configured, skipping store submission"
+            exit 0
+          }
+
+      - name: Checkout
+        if: env.AZURE_TENANT_ID != ''
+        uses: actions/checkout@v5
+
+      - name: Download MSIX artifact
+        if: env.AZURE_TENANT_ID != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: OrcaSQL.msix
+          path: dist/
+
+      - name: Submit to Microsoft Store
+        if: env.AZURE_TENANT_ID != ''
+        shell: pwsh
+        run: |
+          pwsh -File build/windows/msix/submit.ps1 `
+            -TenantId     $env:AZURE_TENANT_ID `
+            -ClientId     $env:AZURE_CLIENT_ID `
+            -ClientSecret $env:AZURE_CLIENT_SECRET `
+            -AppId        $env:STORE_APP_ID `
+            -MsixPath     "dist\OrcaSQL.msix"

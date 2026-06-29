@@ -1,0 +1,38 @@
+version: '3'
+
+tasks:
+  build:
+    summary: Builds the application for macOS
+    vars:
+      # 로컬 빌드 시 git describe 로 버전 자동 산출 (태그가 없으면 dev fallback)
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo 0.1.0-dev
+    cmds:
+      - go build -o bin/OrcaSQL -ldflags="-X main.Version={{.VERSION}} -w -s" .
+
+  run:
+    summary: Runs the built macOS binary
+    deps: [build]
+    cmds:
+      - ./bin/OrcaSQL
+
+  package:
+    summary: Packages the macOS binary
+    deps: [build]
+    cmds:
+      - tar -czf bin/OrcaSQL-darwin-universal.tar.gz -C bin OrcaSQL
+
+  dmg:
+    summary: macOS DMG 드래그 설치 이미지 생성 (wails3 build 먼저 필요)
+    cmds:
+      - brew install create-dmg || true
+      - |
+        create-dmg \
+          --volname "OrcaSQL" \
+          --volicon "build/appicon.png" \
+          --window-pos 200 120 --window-size 660 400 \
+          --icon-size 100 \
+          --icon "OrcaSQL.app" 180 170 \
+          --hide-extension "OrcaSQL.app" \
+          --app-drop-link 480 170 \
+          "bin/OrcaSQL.dmg" "bin/OrcaSQL.app" || true
