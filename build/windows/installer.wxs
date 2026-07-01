@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="OrcaSQL" Manufacturer="My OrcaSQL"
+           Version="$(Version)" UpgradeCode="{D4E5F6A7-B8C9-0D1E-2F3A-4B5C6D7E8F9A}"
+           InstallerVersion="500" Scope="perMachine">
+    <SummaryInformation Description="OrcaSQL MySQL GUI Client" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="OrcaSQLIcon" SourceFile="build\windows\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="OrcaSQLIcon" />
+
+    <!-- 사용자 데이터 정리 옵션 (기본 0 = 보존). 언인스톨 시 사용자가 명시적으로 체크해야 1로 설정됨. -->
+    <Property Id="REMOVE_USERDATA" Value="0" Secure="yes" />
+
+    <Feature Id="ProductFeature" Title="OrcaSQL" Level="1">
+      <ComponentGroupRef Id="MainComponents" />
+    </Feature>
+
+    <!-- 표준 InstallDir UI + 언인스톨 시 사용자 데이터 정리 다이얼로그 추가 -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UIRef Id="UserDataRemovalUI" />
+
+    <!-- 언인스톨 시 CustomAction: REMOVE_USERDATA=1 일 때만 ps1 실행. RemoveFiles 전에 실행해야 ps1 자체가 살아있음. -->
+    <CustomAction Id="RemoveUserDataAction"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand='powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "[INSTALLFOLDER]uninstall_userdata.ps1"'
+                  Execute="deferred" Impersonate="yes" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="RemoveUserDataAction" Before="RemoveFiles"
+              Condition="REMOVE_USERDATA=&quot;1&quot; AND REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="OrcaSQL" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="OrcaSQL" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="MainComponents" Directory="INSTALLFOLDER">
+      <Component Id="OrcaSQLExe">
+        <File Id="OrcaSQLExeFile" Source="bin\OrcaSQL.exe" KeyPath="yes" />
+        <Shortcut Id="StartMenuShortcut" Directory="AppMenuFolder" Name="OrcaSQL"
+                  Target="[INSTALLFOLDER]OrcaSQL.exe"
+                  Icon="OrcaSQLIcon" IconIndex="0" />
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="OrcaSQL"
+                  Target="[INSTALLFOLDER]OrcaSQL.exe"
+                  Icon="OrcaSQLIcon" IconIndex="0" />
+      </Component>
+      <Component Id="UninstallUserDataScript">
+        <File Id="UninstallUserDataPS1" Source="build\windows\uninstall_userdata.ps1" KeyPath="yes" />
+      </Component>
+      <Component Id="CleanupMenu" Directory="AppMenuFolder">
+        <RemoveFolder Id="AppMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\OrcaSQL" Name="Installed"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+
+  <!-- 언인스톨 시 사용자 데이터 삭제 옵션을 묻는 다이얼로그.
+       MaintenanceTypeDlg → RemoveDataDlg → VerifyReadyDlg 흐름으로 끼워넣음. -->
+  <Fragment>
+    <UI Id="UserDataRemovalUI">
+      <Dialog Id="RemoveDataDlg" Width="370" Height="270" Title="OrcaSQL Setup" NoMinimize="yes">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes"
+                 Text="{\WixUI_Font_Title}User Data Cleanup" />
+        <Control Id="Subtitle" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes"
+                 Text="Choose whether to remove OrcaSQL user data." />
+
+        <Control Id="Description1" Type="Text" X="20" Y="60" Width="330" Height="40" Transparent="yes" NoPrefix="yes"
+                 Text="By default, your saved connections, query history, favorites, session state, and saved passwords are preserved so you can keep them if you reinstall OrcaSQL later." />
+        <Control Id="Description2" Type="Text" X="20" Y="105" Width="330" Height="30" Transparent="yes" NoPrefix="yes"
+                 Text="If you check the box below, the following will be permanently deleted:" />
+        <Control Id="Description3" Type="Text" X="35" Y="135" Width="320" Height="30" Transparent="yes" NoPrefix="yes"
+                 Text="• %USERPROFILE%\.orcasql (all data files and logs)
+• Windows Credential Manager entries beginning with &quot;orcasql&quot;" />
+
+        <Control Id="RemoveDataCheck" Type="CheckBox" X="20" Y="175" Width="330" Height="17"
+                 Property="REMOVE_USERDATA" CheckBoxValue="1"
+                 Text="Also delete user data (cannot be undone)" />
+
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="MaintenanceTypeDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <!-- MaintenanceTypeDlg 의 Remove 버튼이 새 RemoveDataDlg 로 향하도록 publish 우선순위 1로 등록 -->
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="RemoveDataDlg" Order="1" />
+      <!-- VerifyReadyDlg 의 Back 버튼이 RemoveDataDlg 로 돌아오게 -->
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="RemoveDataDlg" Order="1"
+               Condition="Installed AND WixUI_InstallMode = &quot;Remove&quot;" />
+    </UI>
+  </Fragment>
+</Wix>

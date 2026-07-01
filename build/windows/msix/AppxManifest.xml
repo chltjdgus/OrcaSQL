@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+
+  <Identity
+    Name="hyeon.MyOrcaSQL"
+    Publisher="__PUBLISHER_CN__"
+    Version="__VERSION__.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <!-- Partner Center 에서 예약된 앱 표시명과 글자 단위 일치 필수 — 미일치 시 Store 가 거부 -->
+    <DisplayName>My OrcaSQL</DisplayName>
+    <!-- Partner Center 의 Publisher Display Name (계정 표시명) 과 글자 단위 일치 필수 — Store 검증이 hard-block -->
+    <PublisherDisplayName>hyeon</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>MySQL GUI Client built with Wails v3</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="ko-kr" />
+  </Resources>
+
+  <Applications>
+    <Application Id="OrcaSQL" Executable="OrcaSQL.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="My OrcaSQL"
+        Description="MySQL GUI Client"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+    <Capability Name="privateNetworkClientServer" />
+  </Capabilities>
+</Package>
