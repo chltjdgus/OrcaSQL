@@ -1,0 +1,101 @@
+name: Mirror to OrcaSQL (public)
+
+# WebSQL(private) 의 v* 태그 push 시 OrcaSQL(public) 로 빌드 필요 파일만 복사.
+# - 매 sync 는 orphan single-commit 으로 force-push (커밋 내역 비공개)
+# - 같은 태그도 OrcaSQL 에 push → OrcaSQL 의 build.yml 이 트리거되어 Releases 생성
+#
+# 요구사항: WebSQL 레포 secret `MIRROR_PAT` (OrcaSQL write 권한 PAT, scope: repo)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '강제 sync 시 OrcaSQL 에 push 할 태그 (비워두면 main 만 갱신)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Sync source to chltjdgus/OrcaSQL
+    runs-on: ubuntu-latest
+    # 미러 워크플로는 WebSQL 에서만 실행. 가드(미러 트리에 워크플로 파일이 복사되더라도 OrcaSQL 에서는 no-op)
+    if: github.repository == 'chltjdgus/WebSQL'
+
+    steps:
+      - name: Checkout WebSQL
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Resolve mirror tag
+        id: meta
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Mirror tag: '${TAG}'"
+
+      - name: Build mirror tree
+        run: |
+          mkdir -p /tmp/mirror
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='.claude/' \
+            --exclude='CLAUDE.md' \
+            --exclude='DEVELOPMENT_PLAN.md' \
+            --exclude='.idea/' \
+            --exclude='.vscode/' \
+            --exclude='.DS_Store' \
+            --exclude='node_modules/' \
+            --exclude='bin/' \
+            --exclude='frontend/dist/' \
+            --exclude='frontend/node_modules/' \
+            --exclude='build/bin/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='*.local' \
+            ./ /tmp/mirror/
+          echo "--- Mirror tree top-level ---"
+          ls -la /tmp/mirror/
+
+      - name: Push orphan commit to OrcaSQL
+        env:
+          MIRROR_PAT: ${{ secrets.MIRROR_PAT }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "${MIRROR_PAT}" ]; then
+            echo "::error::MIRROR_PAT secret 이 설정되지 않았습니다. WebSQL 레포 Settings → Secrets and variables → Actions 에 추가하세요."
+            exit 1
+          fi
+
+          cd /tmp/mirror
+          git init -q -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          MSG="release: ${TAG:-manual-sync} (source: chltjdgus/WebSQL@${SHA:0:7})"
+          git commit -q -m "${MSG}"
+
+          git remote add public "https://x-access-token:${MIRROR_PAT}@github.com/chltjdgus/OrcaSQL.git"
+
+          echo "Force-pushing orphan main to OrcaSQL..."
+          git push --force public main
+
+          if [ -n "${TAG}" ]; then
+            echo "Pushing tag ${TAG} to OrcaSQL..."
+            git tag "${TAG}"
+            git push --force public "${TAG}"
+          fi
+
+          echo "Mirror complete."
