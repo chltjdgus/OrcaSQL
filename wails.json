@@ -1,0 +1,22 @@
+{
+  "$schema": "https://wailsapp.github.io/wails/schemas/config.v3.json",
+  "name": "OrcaSQL",
+  "outputfilename": "OrcaSQL",
+  "frontend": {
+    "dir": "./frontend",
+    "devServerUrl": "http://localhost:5173",
+    "install": "bun install",
+    "build": "bun run build",
+    "dev": "bun run dev"
+  },
+  "author": {
+    "name": "My OrcaSQL",
+    "email": ""
+  },
+  "info": {
+    "productName": "OrcaSQL",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026",
+    "comments": "MySQL GUI Client"
+  }
+}
