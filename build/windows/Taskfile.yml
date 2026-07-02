@@ -1,0 +1,46 @@
+version: '3'
+
+tasks:
+  build:
+    summary: Builds the application for Windows
+    vars:
+      # 로컬 빌드 시 git describe 로 버전 자동 산출 (태그가 없으면 dev fallback)
+      VERSION:
+        sh: git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo 0.1.0-dev
+    cmds:
+      - go build -o bin/OrcaSQL.exe -ldflags="-X main.Version={{.VERSION}} -w -s" .
+
+  run:
+    summary: Runs the built Windows binary
+    deps: [build]
+    cmds:
+      - bin/OrcaSQL.exe
+
+  package:
+    summary: Packages the Windows binary into a zip
+    deps: [build]
+    cmds:
+      - powershell Compress-Archive -Path bin/OrcaSQL.exe -DestinationPath bin/OrcaSQL-windows-amd64.zip -Force
+
+  msi:
+    summary: WiX v4 MSI 인스톨러 빌드 (repo 루트에서 실행, wails3 build 먼저 필요)
+    vars:
+      VERSION: '{{.VERSION | default "0.1.0"}}'
+    cmds:
+      - dotnet tool install -g wix --allow-downgrade || true
+      # WixToolset.UI.wixext: 언인스톨 시 사용자 데이터 정리 옵션 다이얼로그용
+      - wix extension add -g WixToolset.UI.wixext
+      - wix build -arch x64 -ext WixToolset.UI.wixext build/windows/installer.wxs -d Version={{.VERSION}}.0 -o bin/OrcaSQL-{{.VERSION}}-Setup.msi
+
+  msix:
+    summary: MSIX 패키지 빌드 (package.ps1 호출, wails3 build 먼저 필요)
+    vars:
+      VERSION: '{{.VERSION | default "0.1.0"}}'
+      # Partner Center 가 발급한 Publisher ID — Store 제출 인증서 Subject 와 일치해야 makeappx 검증 통과.
+      # Store 페이지에 공개되는 식별자이므로 secret 이 아님 (로컬 빌드 편의용 기본값).
+      PUBLISHER_CN: '{{.PUBLISHER_CN | default "CN=2AEA6ACB-190B-4ADD-BA1F-F77B4C664163"}}'
+      CERT_PFX_B64: '{{.CERT_PFX_B64 | default ""}}'
+      CERT_PASSWORD: '{{.CERT_PASSWORD | default ""}}'
+    cmds:
+      # package.ps1 은 PowerShell 7 전용 ?. (null-conditional) 연산자를 사용 — Windows PowerShell 5.1 (powershell.exe) 에서는 파싱 에러로 실패한다.
+      - pwsh -File build/windows/msix/package.ps1 -Version {{.VERSION}} -PublisherCN "{{.PUBLISHER_CN}}" -CertPfxB64 "{{.CERT_PFX_B64}}" -CertPassword "{{.CERT_PASSWORD}}"
